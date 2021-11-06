@@ -1,130 +1,393 @@
-<?php
-   
-    //populasi
+<?php   
 
-    //class prameters
-    class Parameters{
-       const FILE_NAME = "products.txt";
-       const COLUMNS = ['item', 'price'];
-       const POPULATION_SIZE = 10;
+  class Parameters{
+      const FILE_NAME = 'products.txt';
+      const COLUMNS = ['item', 'price'];
+      const POPULATION_SIZE = 10;
+      const BUDGET = 200000;
+      const STOPPING_VALUE = 10000;
+      const CROSSOVER_RATE = 0.8;
+  }
+
+  class Catalogue{
+    
+    function createProductColumn($listOfRawProduct){
+        foreach (array_keys($listOfRawProduct) as $listOfRawProductKey) {
+            $listOfRawProduct[Parameters::COLUMNS[$listOfRawProductKey]] = $listOfRawProduct[$listOfRawProductKey];
+            unset($listOfRawProduct[$listOfRawProductKey]);
+        }
+        return $listOfRawProduct;
+    }
+
+    function product(){
+        $collectionOfListProduct = [];
+
+        $raw_data = file(Parameters::FILE_NAME);
+           foreach($raw_data as $listOfRawProduct){
+              $collectionOfListProduct[] = $this->createProductColumn(explode(",", $listOfRawProduct));
+           }
+        return $collectionOfListProduct;
+     }
+  }
+
+  class Individu{
+
+    function countNumberOfGen(){
+        $catalogue = new  Catalogue;
+        return count($catalogue->product());
+    }
+      
+    function createRandomIndividu(){
+         for($i = 0; $i <= $this->countNumberOfGen()-1; $i++)  {
+            $ret[] = rand(0,1 );
+         }
+      return $ret;
+    }
+  }
+
+  class Population{
+      
+    function createRandomPopulation(){
+
+      $individu = new Individu;
+          for($i = 0; $i <= Parameters::POPULATION_SIZE-1; $i++){
+             $ret[] = $individu->createRandomIndividu();
+          } 
+        return $ret;
+      }
+  }
+
+  class Fitness{
+
+    function selectingItem($individu){
+
+        $catalogue = new Catalogue;
+      
+        foreach ($individu as $individukey => $binaryGen) {
+           if($binaryGen === 1){
+              $ret[] = [
+                'selectedKey' => $individukey,
+                'selectedPrice' => $catalogue->product()[$individukey]['price']
+              ];      
+           }
+        }
+      return $ret;
+    }
+
+    function calculaterFitnessValue($individu){
+     
+      //hitung value item yg akan masuk
+      return array_sum(array_column($this->selectingItem($individu), 'selectedPrice'));
+    }
+
+    function countSelectedItem($individu){
+        return count($this->selectingItem($individu));
+    }
+
+    function searchBestIndividu($fits, $maxItem, $numberOfIndividuHasMaxItem){
+        if($numberOfIndividuHasMaxItem === 1){
+          $index = array_search($maxItem, array_column($fits, 'numberOfSelectedItem'));
+          return $fits[$index];
+        }else{
+          foreach ($fits as $key => $val) {
+              if($val['numberOfSelectedItem'] === $maxItem){
+                echo $key. ' '. $val['fitnessValue']. '<br>';
+                $ret[] = [
+                   'individuKey' => $key,
+                   'fitnessValue' => $val['fitnessValue']
+                ];
+              }
+          }
+          if(count(array_unique(array_column($ret, 'fitnessValue'))) === 1){
+              $index = rand(0, count($ret) - 1);
+          }else {
+            $max = max(array_column($ret, 'fitnessValue'));
+            $index = array_search($max, array_column($ret, 'fitnessValue'));
+          }
+          echo 'Hasil';
+          return $ret[$index];
+        }
+    }
+
+    function isFound($fits){
+        //hitung jumlah item 
+      $countedMaxItems = array_count_values(array_column($fits, 'numberOfSelectedItem'));
+      
+      print_r($countedMaxItems);
+      echo '<br>';
+      $maxItem = max(array_keys($countedMaxItems));
+      echo $maxItem;
+      echo '<br>';
+      echo $countedMaxItems[$maxItem];
+
+      $numberOfIndividuHasMaxItem = $countedMaxItems[$maxItem];
+      $bestFitnessValue = $this->searchBestIndividu($fits, $maxItem, $numberOfIndividuHasMaxItem)['fitnessValue'];
+      echo '<br>';
+      echo '<br> Best Fitness Value : '. $bestFitnessValue;
+
+      //HITUNG MAX SELISIH
+      $residual = Parameters::BUDGET - $bestFitnessValue;
+      echo ' Residual '. $residual;
+        if($residual <= Parameters::STOPPING_VALUE && $residual > 0){
+             return TRUE;
+        }
+    }
+
+    function isFit($fitnessValue){
+       if ($fitnessValue <= Parameters::BUDGET) {
+         return TRUE;
+       }
+    }
+
+    function fitnessEvaluation($population){
+      
+      $catalogue = new Catalogue;
+      
+      //read setiap individu
+      foreach ($population as $listOfIndividuKey => $listOfIndividu) {
+        echo 'Individu-'. $listOfIndividuKey. '<br>';
+
+        foreach ($listOfIndividu as $individukey => $binaryGen) {
+            echo $binaryGen.'&nbsp;  &nbsp';
+            print_r($catalogue->product()[$individukey]);
+            echo '<br>';
+        }
+        $fitnessValue = $this->calculaterFitnessValue($listOfIndividu);
+        $numberOfSelectedItem = $this->countSelectedItem($listOfIndividu);
+        echo 'Max. Item : ' .$numberOfSelectedItem;
+        echo '<br>';
+        echo 'Fitness Value :' .$fitnessValue;
+        if ($this->isFit($fitnessValue)) {
+          echo ' (Fit)';
+          $fits[] = [
+             'selectedIndividuKey' => $listOfIndividuKey,
+             'numberOfSelectedItem' => $numberOfSelectedItem,
+             'fitnessValue' => $fitnessValue
+          ];
+          print_r($fits);
+        }else { echo ' (Not Fit)';}
+        echo '<br>';
+      }
+        if($this->isFound($fits)){
+          echo ' Found';
+        }else {
+          echo '  >> next generation';
+        }
+    }
+  }
+
+  //crossover
+  class Crossover{
+
+    public $populations;
+
+    function __construct($populations)
+    {
+      $this->populations = $populations;
+    }
+
+    function randomZeroToOne(){
+      return (float)rand() / (float)getrandmax();
     }
     
-   //membuat katalog for read dataset products.txt 
-   class Catalogue{
-
-       //proses konversi index from 1 to 0 menjadi item pres yakni dari integer ke string
-       function createProductColumn($listOfRawProduct){
-            //read kolom dari kedua data set products
-            foreach(array_keys($listOfRawProduct) as $listOfRawProductKey){
-              $listOfRawProduct[Parameters::COLUMNS[$listOfRawProductKey]] = $listOfRawProduct[$listOfRawProductKey];  
-               
-                unset($listOfRawProduct[$listOfRawProductKey]); // disimpan kembali ddan dikosongkan lgi
+    //membangkitkan nilai acak
+    function generateCrossover(){
+       for($i = 0; $i <= Parameters::POPULATION_SIZE-1; $i++){
+         $randomZeroToOne = $this->randomZeroToOne();
+            if($randomZeroToOne < Parameters::CROSSOVER_RATE){
+                $parents[$i] = $randomZeroToOne;
             }
-          return $listOfRawProduct;
        }
-        
-       //call file koleksi item prodak
-       function product(){
-            $collectionOfListProduct = [];
-             
-            $raw_data = file(Parameters::FILE_NAME);
-            //read perbaris dataset products
-            foreach($raw_data as $listOfRawProduct){
-                $collectionOfListProduct[] = $this->createProductColumn(explode(" , ", $listOfRawProduct)); 
+       //kombinasi dari idividu yg sudah di pilih
+       foreach (array_keys($parents) as $key) {
+          foreach (array_keys($parents) as $subkey) {
+            if($key !== $subkey){
+              $ret[] = [$key, $subkey];
             }
-          return $collectionOfListProduct;
-        }
+          }
+          array_shift($parents);
+       }
+       return $ret;
     }
-   
-    //create class populasi individu
-    class Individu{
 
-        function countNumberOfGen(){
-            $catalogue = new Catalogue;
-            return count($catalogue->product());
+    function offSpring($parent1, $parent2, $cutPointIndex, $offspring){
+         
+      $lengthOfGen = new Individu;
+      
+      if($offspring == 1){
+        for($i = 0; $i <= $lengthOfGen->countNumberOfGen()-1; $i++){
+          if($i <= $cutPointIndex){
+             $ret[] = $parent1[$i];
+          }
+          if($i > $cutPointIndex ){
+             $ret[] = $parent2[$i];
+          }
         }
+      }
 
-        function createRandomIndividu(){
+      if($offspring == 2){
+        for($i = 0; $i <= $lengthOfGen->countNumberOfGen()-1; $i++){
+          if($i <= $cutPointIndex){
+             $ret[] = $parent2[$i];
+          }
+          if($i > $cutPointIndex ){
+             $ret[] = $parent1[$i];
+          }
+        }
+      }
+      return $ret;
+    }
+    
+    function cutPointRandom(){
+        $lengthOfGen = new Individu;
+        
+        return rand(0, $lengthOfGen->countNumberOfGen()-1);
+    }
+
+    function crossover(){
+      
+      $cutPointIndex = $this->cutPointRandom();
+      //cek cut pointnya
+      echo '<br>';
+      echo 'cut point : ';
+      echo ($cutPointIndex); 
+      
+      echo '<br>';
+ 
+        foreach ($this->generateCrossover() as $listOfCrossover) {
+          $parent1 = $this->populations[$listOfCrossover[0]];
+          $parent2 = $this->populations[$listOfCrossover[1]];
+          echo 'Parents : <br>';
+          foreach($parent1 as $gen){
+            echo $gen;
+          }
+          echo ' >< ';
+          foreach ($parent2 as $gen) {
+            echo $gen;
+          }
+          echo '<br>';
+
+          echo 'Offspring <br>';
+          $offspring1 = $this->offSpring($parent1, $parent2, $cutPointIndex, 1);
+          $offspring2 = $this->offSpring($parent1, $parent2, $cutPointIndex, 2);
+          
+          foreach($offspring1 as $gen){
+            echo $gen;
+          }
+          echo ' >< ';
+          foreach ($offspring2 as $gen) {
+            echo $gen;
+          }
+          echo '<br>';
+          $offsprings[] = $offspring1;
+          $offsprings[] = $offspring2;
+        }
+        return $offsprings;
+    }
+    
+      
+  }
   
-            //generate jumlah gen
-            for($i = 0; $i <= $this->countNumberOfGen()-1; $i++){
-                $ret[] = rand(0, 1);
-            }
-            return $ret;
-        }
+  
+  class Randomize{
+     
+    static function getRandomIndexOfGen(){
+      return rand(0, (new Individu())->countNumberOfGen() - 1);
     }
 
-   //create populasi awal
-   class Population{
-       
-        function createRandomPopulation(){
+    static function getRandomIndexOfIndividu(){
+      return rand(0, Parameters::POPULATION_SIZE - 1);
+    }
 
-            $individu = new Individu;
-            for($i = 0; $i <= Parameters::POPULATION_SIZE-1; $i++){
-                $ret[] = $individu->createRandomIndividu();
-            }
-            return $ret;
+  }
+
+  //mutation
+  class Mutation {
+
+    function __construct($population)
+    {
+      $this->population = $population;
+    }
+
+    function calculateMutationRate(){
+      return 1 / (new Individu())->countNumberOfGen();
+    }
+
+    //jumlah calculatemutation
+    function calculateNumberOfMutation(){
+      return round($this->calculateMutationRate() * Parameters::POPULATION_SIZE);
+    }
+
+    function isMutation(){
+      if($this->calculateNumberOfMutation() > 0){
+        return TRUE;
+      }
+    }
+    
+    function generateMutation($valueOfGen){
+       if($valueOfGen === 0){
+         return 1;
+       }
+       else {
+         return 0;
        }
     }
 
-    //create class fitness for seleksi item
-    class Fitness {
-        
-        function selectingItem($individu){
-             
-            //seleksi item per individu
-             $catalogue = new Catalogue;
+    function mutation(){
+      
+      //masukan dalam mutasi
+      if($this->isMutation()){
+        for($i = 0; $i <= $this->calculateNumberOfMutation()-1; $i++){
+          $indexOfIndividu = Randomize::getRandomIndexOfIndividu();
+          $indexOfGen = Randomize::getRandomIndexOfGen();
+          
+          //pilih
+          $selectedIndividu = $this->population[$indexOfIndividu];
+          echo 'before mutation : ';
+          print_r($selectedIndividu);
+          echo '<br>';
 
-             foreach ($individu as $individuKey => $binaryGen) {
-                 if($binaryGen === 1){
-                     $ret[] = [
-                         'selectedKey' => $individuKey,
-                         'selectedPrice' => $catalogue->product()[$individuKey]['price']
-                     ];
-                 }
-              }
-            return $ret;
+          $valueOfGen = $selectedIndividu[$indexOfGen];
+          $mutatedGen = $this->generateMutation($valueOfGen);
+
+          $selectedIndividu[$indexOfGen] = $mutatedGen;
+          echo 'After Mutation';
+          print_r($selectedIndividu);
+          $ret[] = $selectedIndividu;
         }
-
-        function calculateFitnessValue($individu){
-            print_r($this->selectingItem($individu));
-            exit();
-        }
-
-        function fitnessEvaluation($population){
-
-            $catalogue = new Catalogue;
-        
-            foreach ($population as $listOfIndividuKey => $listOfIndividu) {
-            
-                echo 'Individu-'. $listOfIndividuKey. '<br>';
-                  
-                //mebaca index per individu
-                  foreach ($listOfIndividu as $individuKey => $binaryGen) {
-                      echo $binaryGen. '&nbsp;&nbsp;';
-                        print_r($catalogue->product()[$individuKey]);
-                          echo '<br>';
-                  }
-                $fitnessValue = $this->calculateFitnessValue($listOfIndividu);
-              }
-        }
+        return $ret;
+      }  
     }
+  }
 
-   //proses tampil (read) 
-    // $katalog = new Catalogue;
-    // $katalog->product($parameters);
+  $initalPopulation = new Population;
+  $population = $initalPopulation->createRandomPopulation();
 
-    $initialPopulation = new Population;
-    $population = $initialPopulation->createRandomPopulation();
+  $fitness = new Fitness;
+  $fitness->fitnessEvaluation($population);
 
-    //  $initialPopulation = new Population;
-    //  $initialPopulation->createRandomPopulation();
+  $crossover = new Crossover($population);
+  $crossoveroffsprings =  $crossover->crossover();
+  
+  echo 'Crossover offspring';
+  print_r($crossoveroffsprings);
+  
+  echo '<p></p>';
+  // (new Mutation($population))->mutation();
+  $mutation = new Mutation($population);
+if($mutation->mutation()){
+  $mutationoffsprings = $mutation->mutation();
+   
+   echo 'Mutation offspring <br>';
+   print_r($crossoveroffsprings);
+   echo '<p></p>';
 
-    $fitness = new Fitness;
-    $fitness->fitnessEvaluation($population);
+  foreach ($mutation as $mutationoffspring) {
+    $crossoveroffsprings[] = $mutationoffspring;
+  }
+}
+echo 'Mutation offsprings <br>';
+print_r($crossoveroffsprings);
 
-    // $individu = new Individu();
-    // print_r($individu->createRandomIndividu());
-    
-    //fungsi fitness 
-?> 
+// $individu = new Individu;
+// print_r($individu->createRandomIndividu());
