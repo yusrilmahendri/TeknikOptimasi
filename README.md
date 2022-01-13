@@ -1,4 +1,3 @@
 # algen
 Algoritma Genetika
-PERTEMUAN 6 sampai 9
-
+lanjutan dari pertemuan 5
