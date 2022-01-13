@@ -336,7 +336,7 @@ class Mutation
 
   function calculateMutationRate()
   {
-    return 1 / (new Individu())->countNumberOfGen();
+    return 0.2 / (new Individu())->countNumberOfGen();
   }
 
   //jumlah calculatemutation
@@ -402,7 +402,7 @@ class Selection
   //tempory poluation
   function createTemporaryPopulation()
   {
-    echo 'base population : ' . count($this->population) . ' &nbsp;';
+    echo '<p></p><br>base population : ' . count($this->population) . ' &nbsp;';
     foreach ($this->combinedOffsprings as $offspring) {
       $this->population[] = $offspring;
     }
